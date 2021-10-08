@@ -5,11 +5,11 @@ import os
 
 plt.rc('font', **{'style' : 'normal'}, size=22)
 
-folder = "/home/ppravatto/Scrivania/LucaParser"
-         
+folder = "/home/luca/Downloads/"
+cycles = []                                                 #Define the list containing all the cycles data
+    
 def read_DTA_files(folder):
 
-    cycles = []                                                 #Define the list containing all the cycles data
     
     fig = plt.figure(figsize=(12, 10))
 
@@ -19,9 +19,13 @@ def read_DTA_files(folder):
 
             print("Loading: " + filename)
             path = os.path.join(folder, filename)
-
-            cycle = [[], [], []]                                # array containing the data (time, voltage, current)
-            tick = 0 if ("Charge" in filename) else 1           # 0 for charge, 1 for discharge   
+            
+            if ("Charge" in filename):
+                tick = 0
+                cycle = [[], [], []]                            # array containing the data (time, voltage, current)
+                time_offset = float(0)
+            else:
+                tick = 1                                        # 0 for charge, 1 for discharge          
         
             with open(path, "r") as file:
                 
@@ -32,29 +36,35 @@ def read_DTA_files(folder):
                 for line_num, line in enumerate(file):
 
                     buffer = line.split()
-
+                 
                     if "CURVE" in line:
                         beginning = line_num + 2
                         npoints = int(buffer[2])+1
                            
                     # start grabbing data
                     if (beginning != None and beginning < line_num < beginning+npoints):
-                        for field in range(3):
-                            cycle[field].append(float(buffer[field+1]))
-                        
+                        cycle[0].append(float(buffer[1]) + time_offset)     # time (with offset for discharge)
+                        cycle[1].append(float(buffer[2]))                   # voltage
+                        cycle[2].append(float(buffer[3]))                   # current
 
-            plt.plot( cycle[0],cycle[1], linewidth=0.5, marker="o", markersize=1, label=("Charge" if tick==0 else "Discharge"))
-            cycles.append(cycle)
-    
+                time_offset = cycle[0][-1]
+                                           
+            cycle.append(cycle)
+
+            if tick == 1:
+                cycles.append(cycle)
+         
+                                                                       
+read_DTA_files(folder)   
+
+for cycle_num, cycle in enumerate(cycles):
+
+    plt.plot( cycle[0],cycle[1], linewidth=0.5, marker="o", markersize=1, label=("Cycle %d" % (cycle_num+1)))
     plt.xlabel("time (s)")
     plt.ylabel("Voltage vs Reference (V)")
     plt.grid(which='major', c="#DDDDDD")
     plt.grid(which='minor', c="#EEEEEE")
     plt.legend()
     plt.tight_layout()
-    plt.show()
-    
-    
-                                                                       
-read_DTA_files(folder)            
+    plt.show()   
    
