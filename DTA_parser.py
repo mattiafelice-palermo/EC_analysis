@@ -19,6 +19,30 @@ class halfcycle:
     voltage: pd.core.frame.DataFrame 
     current: pd.core.frame.DataFrame
 
+    def plot_voltage(self):
+
+        plt.plot(self.time, self.voltage, linewidth=0.5, marker="o", markersize=1, )
+
+        plt.xlabel("Time (s)")
+        plt.ylabel("Voltage vs. Reference (V)")
+        plt.grid(which='major', c="#DDDDDD")
+        plt.grid(which='minor', c="#EEEEEE")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()      
+
+    def plot_current(self):
+
+        plt.plot(self.time, self.current, linewidth=0.5, marker="o", markersize=1, )
+
+        plt.xlabel("Time (s)")
+        plt.ylabel("Current (A)")
+        plt.grid(which='major', c="#DDDDDD")
+        plt.grid(which='minor', c="#EEEEEE")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()  
+
 class cycle:
     """
     Contains the charge and discharge half-cycles
@@ -126,6 +150,12 @@ def read_mpt_files():
                         path, dtype=np.float64, delimiter = '\t', skiprows=beginning, decimal=","
                 )
 
+                data.rename(columns={'time/s': 'Time (s)', 
+                                     'Ewe/V': 'Voltage vs. Ref. (V)',
+                                     'I/mA': 'Current (A)'}, inplace=True)  # note: these are mA
+
+                data['Current (A)'] = data['Current (A)'].divide(1000)    # convert mA to A
+
                 cycle_num = 0
 
                 # initiate Cycle object providing dataframe view within delims
@@ -133,13 +163,13 @@ def read_mpt_files():
                     first_row = delims[cycle_num][1]
                     last_row = delims[cycle_num][2]
                     
-                    charge = halfcycle(data["time/s"][first_row:last_row][data["ox/red"] == 1],
-                                        data["Ewe/V"][first_row:last_row][data["ox/red"] == 1],
-                                        data["I/mA"][first_row:last_row][data["ox/red"] == 1])
+                    charge = halfcycle(data['Time (s)'][first_row:last_row][data['ox/red'] == 1],
+                                       data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 1],
+                                       data['Current (A)'][first_row:last_row][data['ox/red'] == 1])
                     
-                    discharge = halfcycle(data["time/s"][first_row:last_row][data["ox/red"] == 0],
-                                           data["Ewe/V"][first_row:last_row][data["ox/red"] == 0],
-                                           data["I/mA"][first_row:last_row][data["ox/red"] == 0])
+                    discharge = halfcycle(data['Time (s)'][first_row:last_row][data["ox/red"] == 0],
+                                          data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 0],
+                                          data['Current (A)'][first_row:last_row][data['ox/red'] == 0])
 
                     cyc = cycle(charge, discharge)
                     
@@ -164,32 +194,7 @@ def calculate_capacity(cycle):
 
     return capacity
 
-def plot_voltage(cycle):
-
-    plt.plot(cycle.time, cycle.voltage, linewidth=0.5, marker="o", markersize=1, )
-    
-    plt.xlabel("Time (s)")
-    plt.ylabel("Voltage vs. Reference (V)")
-    plt.grid(which='major', c="#DDDDDD")
-    plt.grid(which='minor', c="#EEEEEE")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()      
-
-def plot_current(cycle):
-
-    cycle.plot(x = "Time (s)", y = "Current (A)", figsize = (12, 10), 
-    title = "Cycle %d (%s)" % (cycle["Cycle number"][0], cycle["Half-cycle"][0]))
-    
-    plt.xlabel("Time (s)")
-    plt.ylabel("Current (A)")
-    plt.grid(which='major', c="#DDDDDD")
-    plt.grid(which='minor', c="#EEEEEE")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()  
-
 read_mpt_files()   
 #read_DTA_files()
 
-plot_voltage(cycles[1].discharge)
+cycles[1].charge.plot_voltage()
