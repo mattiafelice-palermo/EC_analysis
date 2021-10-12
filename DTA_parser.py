@@ -54,7 +54,7 @@ class cycle:
    
 def read_DTA_files():
     
-    cycle_num = 1
+    cycle_num = 0
 
     # finding all files with the .DTA extension
     for filename in sorted(os.listdir(folder)):
@@ -194,7 +194,7 @@ def calculate_capacity(cycle):
 
     return capacity
 
-read_mpt_files()   
-#read_DTA_files()
+#read_mpt_files()   
+read_DTA_files()
 
 cycles[1].charge.plot_voltage()
