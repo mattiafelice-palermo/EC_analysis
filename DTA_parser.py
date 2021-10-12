@@ -47,8 +47,14 @@ class cycle:
     """
     Contains the charge and discharge half-cycles
     """
-    def __init__(self, charge, discharge):
+    def __init__(self):
+        self.charge = None
+        self.discharge = None
+
+    def add_charge(self, charge):
         self.charge = charge
+
+    def add_discharge(self, discharge):
         self.discharge = discharge
 
 
@@ -97,14 +103,15 @@ def read_DTA_files():
                         'A': 'Current (A)'
                     }, inplace=True
                 )
-
+                
                 if cycle_type == 1:
+                    cyc = cycle()
                     charge = halfcycle(
                         data['Time (s)'],
                         data['Voltage vs. Ref. (V)'],
                         data['Current (A)']
                     )
-                    cycles.append(charge)
+                    cyc.add_charge(charge)
 
                 elif cycle_type == 0:
                     discharge = halfcycle(
@@ -112,7 +119,8 @@ def read_DTA_files():
                         data['Voltage vs. Ref. (V)'],
                         data['Current (A)']
                     )
-                    cycles.append(discharge)
+                    cyc.add_discharge(discharge)
+                    cycles.append(cyc)
                
                                          
 def read_mpt_files():
@@ -182,7 +190,9 @@ def read_mpt_files():
                         data['Current (A)'][first_row:last_row][data['ox/red'] == 0]
                     )
 
-                    cyc = cycle(charge, discharge)
+                    cyc = cycle()
+                    cyc.add_charge(charge)
+                    cyc.add_discharge(discharge)
                     
                     cycles.append(cyc)
                     cycle_num +=1               
