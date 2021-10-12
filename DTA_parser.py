@@ -51,74 +51,75 @@ class cycle:
         self.charge = charge
         self.discharge = discharge
 
-   
+
 def read_DTA_files():
     
     cycle_num = 0
 
     # finding all files with the .DTA extension
     for filename in sorted(os.listdir(folder)):
+
         if filename.endswith(".DTA"):
 
             print("Loading: " + filename)
-            path = os.path.join(folder, filename)
-
-            if ("Charge" in filename):
-                cycle_type = 0
-            elif ("Discharge" in filename):
-                cycle_type = 1                                              
+            path = os.path.join(folder, filename)                                             
         
             with open(path, "r") as file:
                 
-                beginning = None                                # line at which the table begins
-                npoints = None                                  # number of data points
-                cycle = [[], [], [], [], []]                    # [cycle number, half-cycle type, time, voltage, current]
+                beginning = None    # line at which the table begins
+                npoints = None      # number of data points
+                cycle_type = None   # 1 for charge, 0 for discharge
 
                 # finding the "CURVE TABLE npoints" line in file
                 for line_num, line in enumerate(file):
+                    
+                    if "Step 1 Current (A)" in line:
+                        if float(line.split()[2]) > 0:
+                            cycle_type = 1  # positive current = charge
+                        elif float(line.split()[2]) < 0:
+                            cycle_type = 0  # negative current = discharge
 
-                    buffer = line.split()
-                 
                     if "CURVE" in line:
                         beginning = line_num + 2
-                        npoints = int(buffer[2])+1
- 
-                    if cycle_type == 0:                              
-                        if (beginning != None and beginning < line_num < beginning+npoints):
-                            cycle[0].append(cycle_num)                           
-                            cycle[1].append("Charge")                           
-                            cycle[2].append(float(buffer[1]))   # time (s)
-                            cycle[3].append(float(buffer[2]))   # voltage (V)
-                            cycle[4].append(float(buffer[3]))   # current (A)
-                                            
-                    elif cycle_type == 1:                                
-                        if (beginning != None and beginning < line_num < beginning+npoints):
-                            cycle[0].append(cycle_num)                           
-                            cycle[1].append("Discharge")                           
-                            cycle[2].append(float(buffer[1]))   # time (s)
-                            cycle[3].append(float(buffer[2]))   # voltage (V)
-                            cycle[4].append(float(buffer[3]))   # current (A)
-                
-                if cycle_type == 1:
-                    cycle_num += 1
-
-                
-                cycle_df = pd.DataFrame(
-                    {
-                        "Cycle number": cycle[0],
-                        "Half-cycle": cycle[1],
-                        "Time (s)": cycle[2],
-                        "Voltage vs Ref. (V)": cycle[3],
-                        "Current (A)": cycle[4]
-                    }
+                        npoints = int(line.split()[-1])
+                        break
+              
+                # reading data from file
+                data = pd.read_table(
+                        path, delimiter = '\t', skiprows=beginning, decimal=".", nrows=npoints
                 )
-                                          
-            cycles.append(cycle_df)
 
+                # renaming columns to standard format
+                data.rename(
+                    columns={
+                        's': 'Time (s)', 
+                        'V vs. Ref.': 'Voltage vs. Ref. (V)',
+                        'A': 'Current (A)'
+                    }, inplace=True
+                )
+
+                if cycle_type == 1:
+                    charge = halfcycle(
+                        data['Time (s)'],
+                        data['Voltage vs. Ref. (V)'],
+                        data['Current (A)']
+                    )
+                    cycles.append(charge)
+
+                elif cycle_type == 0:
+                    discharge = halfcycle(
+                        data['Time (s)'],
+                        data['Voltage vs. Ref. (V)'],
+                        data['Current (A)']
+                    )
+                    cycles.append(discharge)
+               
+                                         
 def read_mpt_files():
 
     # finding all files with the .mpt extension
     for filename in sorted(os.listdir(folder)):
+      
         if filename.endswith(".mpt"):
 
             print("Loading: " + filename)
@@ -145,14 +146,20 @@ def read_mpt_files():
                     if "mode\t" in line:
                         beginning = line_num
                         break
-                    
+
+                # reading data from file    
                 data = pd.read_table(
                         path, dtype=np.float64, delimiter = '\t', skiprows=beginning, decimal=","
                 )
 
-                data.rename(columns={'time/s': 'Time (s)', 
-                                     'Ewe/V': 'Voltage vs. Ref. (V)',
-                                     'I/mA': 'Current (A)'}, inplace=True)  # note: these are mA
+                # renaming columns to standard format
+                data.rename(
+                    columns={
+                        'time/s': 'Time (s)', 
+                        'Ewe/V': 'Voltage vs. Ref. (V)',
+                        'I/mA': 'Current (A)'      # note: these are mA
+                    }, inplace=True
+                )  
 
                 data['Current (A)'] = data['Current (A)'].divide(1000)    # convert mA to A
 
@@ -163,13 +170,17 @@ def read_mpt_files():
                     first_row = delims[cycle_num][1]
                     last_row = delims[cycle_num][2]
                     
-                    charge = halfcycle(data['Time (s)'][first_row:last_row][data['ox/red'] == 1],
-                                       data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 1],
-                                       data['Current (A)'][first_row:last_row][data['ox/red'] == 1])
+                    charge = halfcycle(
+                        data['Time (s)'][first_row:last_row][data['ox/red'] == 1],
+                        data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 1],
+                        data['Current (A)'][first_row:last_row][data['ox/red'] == 1]
+                    )
                     
-                    discharge = halfcycle(data['Time (s)'][first_row:last_row][data["ox/red"] == 0],
-                                          data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 0],
-                                          data['Current (A)'][first_row:last_row][data['ox/red'] == 0])
+                    discharge = halfcycle(
+                        data['Time (s)'][first_row:last_row][data["ox/red"] == 0],
+                        data['Voltage vs. Ref. (V)'][first_row:last_row][data['ox/red'] == 0],
+                        data['Current (A)'][first_row:last_row][data['ox/red'] == 0]
+                    )
 
                     cyc = cycle(charge, discharge)
                     
@@ -196,5 +207,3 @@ def calculate_capacity(cycle):
 
 #read_mpt_files()   
 read_DTA_files()
-
-cycles[1].charge.plot_voltage()
