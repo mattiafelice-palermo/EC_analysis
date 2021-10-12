@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 import scipy.integrate as integrate
@@ -6,9 +7,27 @@ import os
 
 plt.rc('font', **{'style' : 'normal'}, size=22)
 
-folder = "/home/luca/Downloads/"                                # Folder containing the data
-cycles = []                                                     # Define the list containing all the cycles data
-    
+folder = os.getcwd()        # Folder containing the data (assumes it's where the script is located)
+cycles = []                 # Define the list containing all the cycles data
+
+@dataclass
+class halfcycle:
+    """
+    Contains the charge and discharge half-cycles
+    """
+    time: pd.core.frame.DataFrame
+    voltage: pd.core.frame.DataFrame 
+    current: pd.core.frame.DataFrame
+
+class cycle:
+    """
+    Contains the charge and discharge half-cycles
+    """
+    def __init__(self, charge, discharge):
+        self.charge = charge
+        self.discharge = discharge
+
+   
 def read_DTA_files():
     
     cycle_num = 1
@@ -74,9 +93,6 @@ def read_DTA_files():
 
 def read_mpt_files():
 
-    cycle_num = 1
-    half_cycle = 0
-
     # finding all files with the .mpt extension
     for filename in sorted(os.listdir(folder)):
         if filename.endswith(".mpt"):
@@ -86,51 +102,52 @@ def read_mpt_files():
 
             with open(path, "r", encoding="utf8", errors="ignore") as file:
 
-                delims=[]                                       # contains cycle number, first and last line number
+                delims=[]   # contains cycle number, first and last line number
                 beginning = None
-                cycle = [[], [], [], [], []]                    # [cycle number, half-cycle type, time, voltage, current]
 
                 for line_num, line in enumerate(file):
+                    if "Number of loops : " in line:
+                        ncycles = int(line.split(" ")[-1])
 
-                    buffer = line.split()
-                
+                    # Before the output of the experiment, EClab lists the starting
+                    # and ending line of each loop. These will be used to slice
+                    # the pandas dataframe into the different cycles.
+                    if "Loop " in line:
+                        loop_num = int(line.split(" ")[1])
+                        first_pos = int(line.split(" ")[-3])
+                        second_pos = int(line.split(" ")[-1])
+                        delims.append([loop_num, first_pos, second_pos])
+
                     if "mode\t" in line:
                         beginning = line_num
-
-                    if (beginning != None and line_num == beginning+1):
-                        cycle_type = buffer[1]                  # should be 1 for charge and 0 for discharge (check!!)
-
-                    if (beginning != None and line_num > beginning and buffer[1] == cycle_type):
-                        cycle[0].append(cycle_num)                           
-                        cycle[1].append(("Charge"))                                 
-                        cycle[2].append(float(buffer[4].replace(',', '.')))       # time (s)
-                        cycle[3].append(float(buffer[6].replace(',', '.')))       # voltage (V)
-                        cycle[4].append(float(buffer[8].replace(',', '.'))/1000)  # current (A)
-                        
+                        break
                     
-                    elif (beginning != None and line_num > beginning and buffer[1] != cycle_type):
-                        cycle_type = buffer[1]
-                        half_cycle += 1
-                        cycle_num = half_cycle // 2 + 1
-                        
-                        cycle_df = pd.DataFrame(
-                            {
-                                "Cycle number": cycle[0],
-                                "Half-cycle": cycle[1],
-                                "Time (s)": cycle[2],
-                                "Voltage vs Ref. (V)": cycle[3],
-                                "Current (A)": cycle[4]
-                            }
-                        )
-                        cycles.append(cycle_df)
-                        cycle = [[], [], [], [], []]
+                data = pd.read_table(
+                        path, dtype=np.float64, delimiter = '\t', skiprows=beginning, decimal=","
+                )
 
-                        cycle[0].append(cycle_num)                           
-                        cycle[1].append("Discharge")                                 
-                        cycle[2].append(float(buffer[4].replace(',', '.')))       # time (s)
-                        cycle[3].append(float(buffer[6].replace(',', '.')))       # voltage (V)
-                        cycle[4].append(float(buffer[8].replace(',', '.'))/1000)  # current (A)
-                
+                columns = list(data.columns)
+                cyclelist = np.arange(0, ncycles)
+
+                cycle_num = 0
+
+                # initiate Cycle object providing dataframe view within delims
+                while cycle_num < ncycles:
+                    first_row = delims[cycle_num][1]
+                    last_row = delims[cycle_num][2]
+                    
+                    charge = halfcycle(data["time/s"][data["ox/red"] == 1][first_row:last_row],
+                                        data["Ewe/V"][data["ox/red"] == 1][first_row:last_row],
+                                        data["I/mA"][data["ox/red"] == 1][first_row:last_row])
+                    
+                    discharge = halfcycle(data["time/s"][data["ox/red"] == 0][first_row:last_row],
+                                           data["Ewe/V"][data["ox/red"] == 0][first_row:last_row],
+                                           data["I/mA"][data["ox/red"] == 0][first_row:last_row])
+
+                    cyc = cycle(charge, discharge)
+                    
+                    cycles.append(cyc)
+                    cycle_num +=1               
 
 def calculate_capacity(cycle):
     """
@@ -152,8 +169,7 @@ def calculate_capacity(cycle):
 
 def plot_voltage(cycle):
 
-    cycle.plot(x = "Time (s)", y = "Voltage vs Ref. (V)", figsize = (12, 10), 
-    title = "Cycle %d (%s)" % (cycle["Cycle number"][0], cycle["Half-cycle"][0]))
+    plt.plot(cycle.time, cycle.voltage, linewidth=0.5, marker="o", markersize=1, )
     
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage vs. Reference (V)")
@@ -176,8 +192,7 @@ def plot_current(cycle):
     plt.tight_layout()
     plt.show()  
 
-read_mpt_files()   
+#read_mpt_files()   
 #read_DTA_files()
 
-for i in range(10):
-    calculate_capacity(cycles[i])
+#plot_voltage(cycles[0].charge)
