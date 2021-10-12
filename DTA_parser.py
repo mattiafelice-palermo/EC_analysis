@@ -126,9 +126,6 @@ def read_mpt_files():
                         path, dtype=np.float64, delimiter = '\t', skiprows=beginning, decimal=","
                 )
 
-                columns = list(data.columns)
-                cyclelist = np.arange(0, ncycles)
-
                 cycle_num = 0
 
                 # initiate Cycle object providing dataframe view within delims
@@ -136,13 +133,13 @@ def read_mpt_files():
                     first_row = delims[cycle_num][1]
                     last_row = delims[cycle_num][2]
                     
-                    charge = halfcycle(data["time/s"][data["ox/red"] == 1][first_row:last_row],
-                                        data["Ewe/V"][data["ox/red"] == 1][first_row:last_row],
-                                        data["I/mA"][data["ox/red"] == 1][first_row:last_row])
+                    charge = halfcycle(data["time/s"][first_row:last_row][data["ox/red"] == 1],
+                                        data["Ewe/V"][first_row:last_row][data["ox/red"] == 1],
+                                        data["I/mA"][first_row:last_row][data["ox/red"] == 1])
                     
-                    discharge = halfcycle(data["time/s"][data["ox/red"] == 0][first_row:last_row],
-                                           data["Ewe/V"][data["ox/red"] == 0][first_row:last_row],
-                                           data["I/mA"][data["ox/red"] == 0][first_row:last_row])
+                    discharge = halfcycle(data["time/s"][first_row:last_row][data["ox/red"] == 0],
+                                           data["Ewe/V"][first_row:last_row][data["ox/red"] == 0],
+                                           data["I/mA"][first_row:last_row][data["ox/red"] == 0])
 
                     cyc = cycle(charge, discharge)
                     
@@ -192,7 +189,7 @@ def plot_current(cycle):
     plt.tight_layout()
     plt.show()  
 
-#read_mpt_files()   
+read_mpt_files()   
 #read_DTA_files()
 
-#plot_voltage(cycles[0].charge)
+plot_voltage(cycles[1].discharge)
